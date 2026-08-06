@@ -1,2 +1,4 @@
-ctrl + shift + o = scroll down
-ctrl + shift + m = Mudar de Posição
+CTRL + SHIFT + o = scroll down
+CTRL + SHIFT + m = mudar de Posição
+CTRL + SHIFT + y = scroll up
+CTRL + SHIFT + G = Captura

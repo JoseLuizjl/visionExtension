@@ -15,7 +15,17 @@
     contentEl.scrollBy({ top: 90, behavior: 'smooth' });
   });
 
+  window.overlayAPI.onScrollUp(() => {
+    contentEl.scrollBy({ top: -90, behavior: 'smooth' });
+  });
+
   marked.setOptions({ breaks: true, gfm: true });
+  // Modelos costumam responder fórmulas em LaTeX ($...$ e $$...$$) — sem
+  // isso elas aparecem como texto cru com barras invertidas soltas.
+  // nonStandard: a regra padrão só reconhece o fechamento de "$...$" antes de
+  // espaço/pontuação específica — "$-5$)" (comum em intervalos matemáticos)
+  // ficava sem converter porque ")" não está nessa lista.
+  marked.use(markedKatex({ throwOnError: false, nonStandard: true }));
 
   // O texto vem de uma IA — sanitiza antes de jogar como innerHTML (a imagem
   // capturada pode conter texto malicioso que o modelo transcreva de volta).
@@ -79,6 +89,24 @@
 
     ws.addEventListener('message', (ev) => handleMessage(JSON.parse(ev.data)));
   }
+
+  // Atalho Ctrl+Shift+G: repete a última captura pedida pela Página B (o
+  // overlay não tem seletor de modelo/prompt próprio — quem decide isso é o
+  // servidor, reaproveitando o que a Página B usou da última vez).
+  function triggerCapture() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    // Marca já como a captura atual: se o servidor responder com erro (antes
+    // de qualquer 'preview'), handleMessage precisa reconhecer o id mesmo
+    // assim para não descartar a mensagem em silêncio.
+    currentId = id;
+    rawText = '';
+    responseEl.innerHTML = '';
+    statusEl.textContent = 'Capturando…';
+    ws.send(JSON.stringify({ type: 'capture', id }));
+  }
+
+  window.overlayAPI.onTriggerCapture(triggerCapture);
 
   function handleMessage(msg) {
     if (msg.type === 'source-status') return;

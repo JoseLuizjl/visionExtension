@@ -39,6 +39,12 @@
   // Só um newline vira <br> como as pessoas esperam de um chat, não a regra
   // rígida do Markdown puro (que exige duas quebras de linha).
   marked.setOptions({ breaks: true, gfm: true });
+  // Modelos costumam responder fórmulas em LaTeX ($...$ e $$...$$) — sem
+  // isso elas aparecem como texto cru com barras invertidas soltas.
+  // nonStandard: a regra padrão só reconhece o fechamento de "$...$" antes de
+  // espaço/pontuação específica — "$-5$)" (comum em intervalos matemáticos)
+  // ficava sem converter porque ")" não está nessa lista.
+  marked.use(markedKatex({ throwOnError: false, nonStandard: true }));
 
   // O texto vem de uma IA — sanitiza antes de jogar como innerHTML (a imagem
   // capturada pode conter texto malicioso que o modelo transcreve de volta).

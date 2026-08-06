@@ -133,11 +133,16 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 
 let sourceSocket = null;
 const viewers = new Set();
-// O card do Electron (overlay/) entra como esse papel à parte: só escuta,
-// nunca dispara captura, e recebe eco de toda análise — mesmo as disparadas
-// pela Página B no celular — para poder espelhar sem precisar de botão próprio.
+// O card do Electron (overlay/) entra como esse papel à parte: recebe eco de
+// toda análise — mesmo as disparadas pela Página B no celular — para poder
+// espelhar sem precisar de botão próprio, e também pode disparar sua própria
+// captura pelo atalho Ctrl+Shift+G (ver handleOverlayMessage).
 const overlayClients = new Set();
 const pendingCaptures = new Map(); // id -> { viewerSocket }
+// Prompt/modelo/qualidade da última captura pedida pela Página B — é o que o
+// atalho de captura do overlay (Ctrl+Shift+G) reaproveita, já que o card
+// flutuante não tem UI própria para escolher isso.
+let lastCaptureSettings = null;
 
 function safeSend(sock, payload) {
   if (sock.readyState === sock.OPEN) sock.send(payload);
@@ -149,9 +154,13 @@ function broadcastToOverlays(payload) {
 
 // Manda pro viewer que pediu a captura E ecoa pro(s) overlay(s) — assim o
 // card do Electron reflete qualquer captura, não importa se veio do PC ou do celular.
+// Quando a própria captura foi pedida pelo overlay (atalho Ctrl+Shift+G), o
+// viewerSocket já É um overlay — pula ele no broadcast pra não mandar 2x.
 function notify(viewerSocket, payload) {
   safeSend(viewerSocket, payload);
-  broadcastToOverlays(payload);
+  for (const o of overlayClients) {
+    if (o !== viewerSocket) safeSend(o, payload);
+  }
 }
 
 function broadcastSourceStatus() {
@@ -182,6 +191,7 @@ wss.on('connection', (sock, req) => {
     overlayClients.add(sock);
     safeSend(sock, JSON.stringify({ type: 'source-status', connected: !!sourceSocket }));
     sock.on('close', () => overlayClients.delete(sock));
+    sock.on('message', (raw) => handleOverlayMessage(sock, raw));
     return;
   }
 
@@ -218,6 +228,7 @@ function handleViewerMessage(viewerSocket, raw) {
       notify(viewerSocket, JSON.stringify({ type: 'error', id: msg.id, message: 'Página A não está conectada.' }));
       return;
     }
+    lastCaptureSettings = { prompt: msg.prompt, model: msg.model, maxDim: msg.maxDim };
     pendingCaptures.set(msg.id, { viewerSocket, prompt: msg.prompt, model: msg.model });
     safeSend(sourceSocket, JSON.stringify({ type: 'grab', id: msg.id, maxDim: msg.maxDim }));
     return;
@@ -232,6 +243,31 @@ function handleViewerMessage(viewerSocket, raw) {
     cancelAll();
     return;
   }
+}
+
+// O overlay (card do Electron) não tem seletor de modelo/prompt próprio —
+// o atalho Ctrl+Shift+G repete a última captura pedida pela Página B.
+function handleOverlayMessage(overlaySocket, raw) {
+  let msg;
+  try {
+    msg = JSON.parse(raw.toString());
+  } catch {
+    return;
+  }
+  if (msg.type !== 'capture') return;
+
+  if (!sourceSocket) {
+    safeSend(overlaySocket, JSON.stringify({ type: 'error', id: msg.id, message: 'Página A não está conectada.' }));
+    return;
+  }
+  if (!lastCaptureSettings) {
+    safeSend(overlaySocket, JSON.stringify({ type: 'error', id: msg.id, message: 'Capture ao menos uma vez pela Página B antes de usar o atalho.' }));
+    return;
+  }
+
+  const { prompt, model, maxDim } = lastCaptureSettings;
+  pendingCaptures.set(msg.id, { viewerSocket: overlaySocket, prompt, model });
+  safeSend(sourceSocket, JSON.stringify({ type: 'grab', id: msg.id, maxDim }));
 }
 
 // O Ollama processa uma inferência de visão por vez de forma eficiente;

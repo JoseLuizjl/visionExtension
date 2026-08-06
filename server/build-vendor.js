@@ -40,6 +40,21 @@ async function main() {
     path.join(OUT, 'hljs-theme.css')
   );
 
+  // katex já publica um build de browser pronto (define window.katex) —
+  // só copia. Os fonts vêm junto porque o CSS os referencia por @font-face.
+  const katexRoot = path.dirname(require.resolve('katex/package.json'));
+  fs.copyFileSync(path.join(katexRoot, 'dist', 'katex.min.js'), path.join(OUT, 'katex.min.js'));
+  fs.copyFileSync(path.join(katexRoot, 'dist', 'katex.min.css'), path.join(OUT, 'katex.min.css'));
+  fs.cpSync(path.join(katexRoot, 'dist', 'fonts'), path.join(OUT, 'fonts'), { recursive: true });
+
+  // Mesmo caso do marked: marked-katex-extension não expõe lib/index.umd.js
+  // no campo "exports", então resolve a raiz do pacote e monta o caminho.
+  const markedKatexRoot = path.dirname(require.resolve('marked-katex-extension/package.json'));
+  fs.copyFileSync(
+    path.join(markedKatexRoot, 'lib', 'index.umd.js'),
+    path.join(OUT, 'marked-katex.min.js')
+  );
+
   console.log('vendor bundles gerados em public/vendor/');
 }
 

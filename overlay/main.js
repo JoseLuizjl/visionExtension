@@ -100,8 +100,14 @@ app.whenReady().then(() => {
   const okO = globalShortcut.register('CommandOrControl+Shift+O', () => {
     if (win) win.webContents.send('scroll-down');
   });
+  const okY = globalShortcut.register('CommandOrControl+Shift+Y', () => {
+    if (win) win.webContents.send('scroll-up');
+  });
+  const okG = globalShortcut.register('CommandOrControl+Shift+G', () => {
+    if (win) win.webContents.send('trigger-capture');
+  });
 
-  if (!okM || !okO) {
+  if (!okM || !okO || !okY || !okG) {
     console.warn('Aviso: algum atalho global não pôde ser registrado (outro app já está usando essa combinação?)');
   }
 });
