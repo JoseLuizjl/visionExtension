@@ -1,0 +1,21 @@
+# Dependências
+node_modules/
+npm-debug.log*
+
+# Segredos — o token de acesso é gerado sozinho na primeira vez que o
+# servidor sobe (ver server/server.js); nunca deve ir pro repositório.
+server/.token
+
+# Variáveis de ambiente locais
+.env
+.env.local
+
+# SO
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores
+.vscode/
+.idea/
+*.swp

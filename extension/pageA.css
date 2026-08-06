@@ -1,0 +1,49 @@
+body {
+  font-family: system-ui, sans-serif;
+  background: #0b0b0c;
+  color: #eee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  margin: 0;
+}
+
+.wrap {
+  text-align: center;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e74c3c;
+  margin: 0 auto 10px;
+  transition: background 0.2s;
+}
+
+.dot.live {
+  background: #2ecc71;
+}
+
+#video,
+#canvas {
+  position: absolute;
+  left: -99999px;
+  top: -99999px;
+}
+
+button {
+  margin-top: 12px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: #2d6cdf;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.hidden {
+  display: none;
+}

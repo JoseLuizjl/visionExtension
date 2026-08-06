@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Página B — Visão IA</title>
+<link rel="stylesheet" href="pageB.css" />
+<link rel="stylesheet" href="vendor/hljs-theme.css" />
+</head>
+<body>
+  <header>
+    <div class="status">
+      <span id="statusDot" class="dot"></span>
+      <span id="statusText">conectando…</span>
+    </div>
+    <div class="model-row">
+      <select id="modelSelect"></select>
+      <select id="qualitySelect" title="Resolução enviada à IA">
+        <option value="640">Rápido</option>
+        <option value="1024" selected>Equilibrado</option>
+        <option value="1600">Detalhado</option>
+      </select>
+      <button id="refreshModels" title="Atualizar modelos">⟳</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="lastPreview" class="last-preview hidden">
+      <img id="lastPreviewImg" alt="prévia" />
+    </div>
+    <textarea id="promptInput" placeholder="O que a IA deve fazer com a imagem?" rows="2"></textarea>
+    <div class="action-row">
+      <button id="captureBtn">📸 Capturar</button>
+      <button id="stopBtn" disabled title="Parar a análise em andamento">⏹ Parar</button>
+    </div>
+  </main>
+
+  <section class="stack-header">
+    <h2>Respostas</h2>
+    <button id="clearAll">Apagar tudo</button>
+  </section>
+  <div id="stack"></div>
+
+  <div id="lightbox" class="lightbox hidden">
+    <img id="lightboxImg" alt="captura" />
+  </div>
+
+  <script src="vendor/marked.min.js"></script>
+  <script src="vendor/hljs.min.js"></script>
+  <script src="vendor/dompurify.min.js"></script>
+  <script src="pageB.js"></script>
+</body>
+</html>

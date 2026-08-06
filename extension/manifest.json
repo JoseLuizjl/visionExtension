@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Screen → Ollama Vision (Página A)",
+  "version": "1.0.0",
+  "description": "Captura a tela inteira e disponibiliza os frames para análise por um modelo Ollama local com visão computacional.",
+  "permissions": ["desktopCapture", "tabs"],
+  "host_permissions": [
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Iniciar captura de tela (Página A)"
+  }
+}
