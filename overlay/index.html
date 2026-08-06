@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; connect-src http://127.0.0.1:8787 ws://127.0.0.1:8787" />
+<title>Visão IA</title>
+<link rel="stylesheet" href="overlay.css" />
+<link rel="stylesheet" href="vendor/hljs-theme.css" />
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="titlebar">
+      <span class="dot" id="statusDot"></span>
+      <span class="title">Visão IA</span>
+      <button id="closeBtn" title="Fechar">×</button>
+    </div>
+    <div class="content">
+      <img id="thumb" class="thumb hidden" alt="captura" />
+      <div id="status" class="status"></div>
+      <div id="response" class="response"></div>
+    </div>
+  </div>
+  <script src="vendor/marked.min.js"></script>
+  <script src="vendor/hljs.min.js"></script>
+  <script src="vendor/dompurify.min.js"></script>
+  <script src="overlay.js"></script>
+</body>
+</html>

@@ -133,15 +133,31 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 
 let sourceSocket = null;
 const viewers = new Set();
+// O card do Electron (overlay/) entra como esse papel à parte: só escuta,
+// nunca dispara captura, e recebe eco de toda análise — mesmo as disparadas
+// pela Página B no celular — para poder espelhar sem precisar de botão próprio.
+const overlayClients = new Set();
 const pendingCaptures = new Map(); // id -> { viewerSocket }
 
 function safeSend(sock, payload) {
   if (sock.readyState === sock.OPEN) sock.send(payload);
 }
 
+function broadcastToOverlays(payload) {
+  for (const o of overlayClients) safeSend(o, payload);
+}
+
+// Manda pro viewer que pediu a captura E ecoa pro(s) overlay(s) — assim o
+// card do Electron reflete qualquer captura, não importa se veio do PC ou do celular.
+function notify(viewerSocket, payload) {
+  safeSend(viewerSocket, payload);
+  broadcastToOverlays(payload);
+}
+
 function broadcastSourceStatus() {
   const payload = JSON.stringify({ type: 'source-status', connected: !!sourceSocket });
   for (const v of viewers) safeSend(v, payload);
+  broadcastToOverlays(payload);
 }
 
 wss.on('connection', (sock, req) => {
@@ -159,6 +175,13 @@ wss.on('connection', (sock, req) => {
       broadcastSourceStatus();
     });
     sock.on('message', (raw) => handleSourceMessage(raw));
+    return;
+  }
+
+  if (query.role === 'overlay') {
+    overlayClients.add(sock);
+    safeSend(sock, JSON.stringify({ type: 'source-status', connected: !!sourceSocket }));
+    sock.on('close', () => overlayClients.delete(sock));
     return;
   }
 
@@ -192,7 +215,7 @@ function handleViewerMessage(viewerSocket, raw) {
   }
   if (msg.type === 'capture') {
     if (!sourceSocket) {
-      safeSend(viewerSocket, JSON.stringify({ type: 'error', id: msg.id, message: 'Página A não está conectada.' }));
+      notify(viewerSocket, JSON.stringify({ type: 'error', id: msg.id, message: 'Página A não está conectada.' }));
       return;
     }
     pendingCaptures.set(msg.id, { viewerSocket, prompt: msg.prompt, model: msg.model });
@@ -261,7 +284,7 @@ function rememberFullImage(id, image) {
 function enqueueAnalysis(viewerSocket, id, image, thumb, prompt, model) {
   // Só a miniatura viaja até a Página B; a imagem cheia fica aqui no servidor
   // e vai direto para o Ollama (evita mandar ~140 KB ao celular por captura).
-  safeSend(viewerSocket, JSON.stringify({ type: 'preview', id, image: thumb || image }));
+  notify(viewerSocket, JSON.stringify({ type: 'preview', id, image: thumb || image }));
   rememberFullImage(id, image);
   analysisQueue.push({ viewerSocket, id, image, prompt, model });
   broadcastQueuePositions();
@@ -270,7 +293,7 @@ function enqueueAnalysis(viewerSocket, id, image, thumb, prompt, model) {
 
 function broadcastQueuePositions() {
   analysisQueue.forEach((job, i) => {
-    safeSend(job.viewerSocket, JSON.stringify({ type: 'queued', id: job.id, position: i + 1, total: analysisQueue.length }));
+    notify(job.viewerSocket, JSON.stringify({ type: 'queued', id: job.id, position: i + 1, total: analysisQueue.length }));
   });
 }
 
@@ -280,7 +303,7 @@ async function processQueue() {
   if (!job) return;
   queueBusy = true;
   broadcastQueuePositions();
-  safeSend(job.viewerSocket, JSON.stringify({ type: 'analyzing', id: job.id }));
+  notify(job.viewerSocket, JSON.stringify({ type: 'analyzing', id: job.id }));
   currentJob = { id: job.id, cancelledByUser: false, controller: null };
   await runAnalysis(job.viewerSocket, job.id, job.image, job.prompt, job.model, currentJob);
   currentJob = null;
@@ -294,7 +317,7 @@ async function runAnalysis(viewerSocket, id, image, prompt, model, jobState) {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     if (jobState.cancelledByUser) {
-      safeSend(viewerSocket, JSON.stringify({ type: 'stopped', id }));
+      notify(viewerSocket, JSON.stringify({ type: 'stopped', id }));
       return;
     }
 
@@ -353,7 +376,7 @@ async function runAnalysis(viewerSocket, id, image, prompt, model, jobState) {
             if (firstTokenAt === null) firstTokenAt = Date.now();
             streamedAnything = true;
             full += chunk.response;
-            safeSend(viewerSocket, JSON.stringify({ type: 'token', id, text: chunk.response }));
+            notify(viewerSocket, JSON.stringify({ type: 'token', id, text: chunk.response }));
           }
           if (chunk.done) {
             stats = {
@@ -368,7 +391,7 @@ async function runAnalysis(viewerSocket, id, image, prompt, model, jobState) {
 
       const totalMs = Date.now() - startedAt;
       const genMs = firstTokenAt ? Date.now() - firstTokenAt : 0;
-      safeSend(viewerSocket, JSON.stringify({
+      notify(viewerSocket, JSON.stringify({
         type: 'done',
         id,
         fullText: full,
@@ -387,7 +410,7 @@ async function runAnalysis(viewerSocket, id, image, prompt, model, jobState) {
       // cancelamento manual (botão parar / apagar) — o flag é o que distingue.
       if (jobState.cancelledByUser) {
         clearTimeout(timeoutId);
-        safeSend(viewerSocket, JSON.stringify({ type: 'stopped', id }));
+        notify(viewerSocket, JSON.stringify({ type: 'stopped', id }));
         return;
       }
 
@@ -402,7 +425,7 @@ async function runAnalysis(viewerSocket, id, image, prompt, model, jobState) {
       const retryDelay = OLLAMA_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
 
       if (canRetry) {
-        safeSend(viewerSocket, JSON.stringify({
+        notify(viewerSocket, JSON.stringify({
           type: 'retry',
           id,
           nextAttempt: attempt + 1,
@@ -413,7 +436,7 @@ async function runAnalysis(viewerSocket, id, image, prompt, model, jobState) {
         clearTimeout(timeoutId);
         await new Promise((resolve) => setTimeout(resolve, retryDelay));
         if (jobState.cancelledByUser) {
-          safeSend(viewerSocket, JSON.stringify({ type: 'stopped', id }));
+          notify(viewerSocket, JSON.stringify({ type: 'stopped', id }));
           return;
         }
         continue;
@@ -422,7 +445,7 @@ async function runAnalysis(viewerSocket, id, image, prompt, model, jobState) {
       const message = isTimeout
         ? `O Ollama não respondeu em ${OLLAMA_TIMEOUT_MS / 1000}s — pulando para a próxima.`
         : 'Falha ao consultar o Ollama: ' + err.message;
-      safeSend(viewerSocket, JSON.stringify({ type: 'error', id, message }));
+      notify(viewerSocket, JSON.stringify({ type: 'error', id, message }));
       return;
     } finally {
       clearTimeout(timeoutId);

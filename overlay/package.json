@@ -1,0 +1,13 @@
+{
+  "name": "ollama-screen-vision-overlay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Card flutuante (Electron) que mostra a resposta da IA sem tirar o foco da janela atual.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^43.3.0"
+  }
+}
