@@ -5,6 +5,8 @@ npm-debug.log*
 # Segredos — o token de acesso é gerado sozinho na primeira vez que o
 # servidor sobe (ver server/server.js); nunca deve ir pro repositório.
 server/.token
+# Histórico textual persistente das análises (pode conter dados sensíveis).
+server/.vision-memory.json
 
 # Variáveis de ambiente locais
 .env

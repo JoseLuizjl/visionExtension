@@ -21,19 +21,29 @@
   const stopBtn = document.getElementById('stopBtn');
   const stack = document.getElementById('stack');
   const clearAll = document.getElementById('clearAll');
+  const memoryCount = document.getElementById('memoryCount');
+  const clearMemory = document.getElementById('clearMemory');
   const lastPreview = document.getElementById('lastPreview');
   const lastPreviewImg = document.getElementById('lastPreviewImg');
   const lightbox = document.getElementById('lightbox');
   const lightboxImg = document.getElementById('lightboxImg');
+  const toast = document.getElementById('toast');
 
   const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
   let ws;
   let sourceConnected = false;
   const cards = new Map(); // id -> card element
   let activeId = null; // id do card que está "Analisando…" agora — é o que o botão Parar afeta
+  let toastTimer = null;
 
   function updateStopButton() {
     stopBtn.disabled = !activeId;
+  }
+
+  function updateMemoryStatus(count) {
+    const total = Number(count) || 0;
+    memoryCount.textContent = `Memória ativa · ${total} ${total === 1 ? 'análise' : 'análises'}`;
+    clearMemory.disabled = total === 0;
   }
 
   // Só um newline vira <br> como as pessoas esperam de um chat, não a regra
@@ -98,6 +108,8 @@
     if (msg.type === 'source-status') {
       sourceConnected = msg.connected;
       setConn(ws.readyState === WebSocket.OPEN);
+    } else if (msg.type === 'memory-status') {
+      updateMemoryStatus(msg.count);
     } else if (msg.type === 'preview') {
       onPreview(msg.id, msg.image);
     } else if (msg.type === 'queued') {
@@ -146,7 +158,8 @@
     card.className = 'card';
     card.innerHTML = `
       <div class="card-top">
-        <img class="thumb" />
+        <img class="thumb" alt="Captura — toque para copiar" role="button" tabindex="0"
+          title="Toque para copiar a imagem" />
         <div class="meta">
           <div class="model"></div>
           <div class="time"></div>
@@ -167,7 +180,13 @@
       }
       if (id === activeId) { activeId = null; updateStopButton(); }
     });
-    card.querySelector('.thumb').addEventListener('click', () => openLightbox(id, card.querySelector('.thumb').src));
+    const thumb = card.querySelector('.thumb');
+    thumb.addEventListener('click', () => copyCaptureImage(id, thumb.src, thumb));
+    thumb.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      ev.preventDefault();
+      copyCaptureImage(id, thumb.src, thumb);
+    });
     card._rawText = '';
     stack.prepend(card);
     return card;
@@ -182,6 +201,7 @@
     card.querySelector('.card-status').textContent = 'Capturado — entrando na fila…';
     cards.set(id, card);
     lastPreviewImg.src = image;
+    lastPreviewImg.dataset.captureId = id;
     lastPreview.classList.remove('hidden');
   }
 
@@ -257,8 +277,66 @@
     card.querySelector('.card-status').textContent = '⏹ Interrompido';
   }
 
-  // Mostra a miniatura na hora e troca pela imagem cheia quando ela chega —
-  // assim abrir a captura é instantâneo mesmo no celular.
+  function showToast(message, isError) {
+    clearTimeout(toastTimer);
+    toast.textContent = message;
+    toast.classList.toggle('error', !!isError);
+    toast.classList.remove('hidden');
+    toastTimer = setTimeout(() => toast.classList.add('hidden'), 2600);
+  }
+
+  function fullImageUrl(id) {
+    return `/api/image/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`;
+  }
+
+  // A escrita de imagens no clipboard aceita PNG de forma consistente. A
+  // captura enviada à IA pode ter outro formato, então normalizamos antes de
+  // copiar sem reduzir suas dimensões.
+  async function toPng(blob) {
+    if (blob.type === 'image/png') return blob;
+
+    const bitmap = await createImageBitmap(blob);
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0);
+    bitmap.close();
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((png) => png ? resolve(png) : reject(new Error('Não foi possível converter a imagem.')), 'image/png');
+    });
+  }
+
+  async function copyCaptureImage(id, thumbSrc, trigger) {
+    if (!id || trigger.classList.contains('copying')) return;
+    trigger.classList.add('copying');
+    showToast('Copiando imagem…');
+
+    try {
+      if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+        throw new Error('clipboard indisponível');
+      }
+      // O write começa ainda dentro do gesto de toque. Passar uma Promise ao
+      // ClipboardItem evita que Safari/Chrome percam a autorização enquanto a
+      // imagem completa é baixada e convertida.
+      const png = fetch(fullImageUrl(id)).then(async (res) => {
+        if (!res.ok) throw new Error('imagem não disponível');
+        return toPng(await res.blob());
+      });
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+      showToast('Imagem copiada ✓');
+    } catch (err) {
+      // Navegadores móveis bloqueiam a API de clipboard em páginas HTTP da
+      // rede local. Nesse caso abrimos a imagem cheia: pressionar e segurar
+      // oferece a ação "Copiar imagem" do próprio navegador.
+      openLightbox(id, thumbSrc);
+      showToast('Pressione e segure a imagem para copiar', true);
+    } finally {
+      trigger.classList.remove('copying');
+    }
+  }
+
+  // Mostra a miniatura na hora e troca pela imagem cheia quando ela chega.
   function openLightbox(id, thumbSrc) {
     lightboxImg.src = thumbSrc;
     lightbox.classList.remove('hidden');
@@ -266,9 +344,18 @@
     full.onload = () => {
       if (!lightbox.classList.contains('hidden')) lightboxImg.src = full.src;
     };
-    full.src = `/api/image/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`;
+    full.src = fullImageUrl(id);
   }
   lightbox.addEventListener('click', () => lightbox.classList.add('hidden'));
+
+  lastPreviewImg.addEventListener('click', () => {
+    copyCaptureImage(lastPreviewImg.dataset.captureId, lastPreviewImg.src, lastPreviewImg);
+  });
+  lastPreviewImg.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    ev.preventDefault();
+    copyCaptureImage(lastPreviewImg.dataset.captureId, lastPreviewImg.src, lastPreviewImg);
+  });
 
   captureBtn.addEventListener('click', () => {
     if (!sourceConnected) {
@@ -291,7 +378,7 @@
 
   clearAll.addEventListener('click', () => {
     if (stack.children.length === 0) return;
-    if (confirm('Apagar todas as respostas?')) {
+    if (confirm('Apagar os cards? A memória da IA será mantida.')) {
       stack.innerHTML = '';
       cards.clear();
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -299,6 +386,20 @@
       }
       activeId = null;
       updateStopButton();
+    }
+  });
+
+  clearMemory.addEventListener('click', async () => {
+    if (!confirm('Esquecer definitivamente todas as análises anteriores? Isso não pode ser desfeito.')) return;
+    clearMemory.disabled = true;
+    try {
+      const res = await fetch(`/api/memory?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('falha ao apagar');
+      updateMemoryStatus(0);
+      showToast('Memória apagada');
+    } catch {
+      clearMemory.disabled = false;
+      showToast('Não foi possível apagar a memória', true);
     }
   });
 

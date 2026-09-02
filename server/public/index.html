@@ -17,17 +17,22 @@
     <div class="model-row">
       <select id="modelSelect"></select>
       <select id="qualitySelect" title="Resolução enviada à IA">
-        <option value="640">Rápido</option>
-        <option value="1024" selected>Equilibrado</option>
-        <option value="1600">Detalhado</option>
+        <option value="1024">Rápido · 1024 px</option>
+        <option value="1600" selected>Equilibrado · 1600 px</option>
+        <option value="2560">Detalhado · 2560 px</option>
       </select>
       <button id="refreshModels" title="Atualizar modelos">⟳</button>
     </div>
   </header>
 
   <main>
+    <div class="memory-bar">
+      <span id="memoryCount">Memória ativa · 0 análises</span>
+      <button id="clearMemory" disabled title="Apagar definitivamente o contexto lembrado pela IA">Esquecer tudo</button>
+    </div>
     <div id="lastPreview" class="last-preview hidden">
-      <img id="lastPreviewImg" alt="prévia" />
+      <img id="lastPreviewImg" alt="Prévia da última captura" role="button" tabindex="0"
+        title="Toque para copiar a imagem" />
     </div>
     <textarea id="promptInput" placeholder="O que a IA deve fazer com a imagem?" rows="2"></textarea>
     <div class="action-row">
@@ -45,6 +50,7 @@
   <div id="lightbox" class="lightbox hidden">
     <img id="lightboxImg" alt="captura" />
   </div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="vendor/marked.min.js"></script>
   <script src="vendor/hljs.min.js"></script>

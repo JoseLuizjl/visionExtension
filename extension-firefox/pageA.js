@@ -80,25 +80,33 @@
   // Modelos de visão fatiam a imagem em "tokens" proporcionais à resolução:
   // imagem maior = mais tokens = análise muito mais lenta (medido: 1920px leva
   // ~3x o tempo de 1280px só para processar a imagem). A Página B escolhe.
-  const DEFAULT_MAX_DIM = 1024;
+  const DEFAULT_MAX_DIM = 1600;
   const THUMB_DIM = 320;
+  const MEMORY_DIM = 1024;
 
-  function drawScaled(maxDim, quality) {
+  function drawScaled(maxDim, mimeType, quality) {
     const w = video.videoWidth;
     const h = video.videoHeight;
     const scale = Math.min(1, maxDim / Math.max(w, h));
     canvas.width = Math.round(w * scale);
     canvas.height = Math.round(h * scale);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', quality);
+    return canvas.toDataURL(mimeType, quality);
   }
 
   function grabFrame(maxDim) {
-    // A imagem cheia vai só para o Ollama; a miniatura é o que trafega até a
-    // Página B (no celular isso evita mandar ~140 KB só para exibir 48px).
+    // A imagem cheia vai só para o Ollama/endpoint de cópia; a miniatura é o
+    // que trafega de imediato até a Página B para exibir apenas 48px.
     return {
-      image: drawScaled(maxDim || DEFAULT_MAX_DIM, 0.75),
-      thumb: drawScaled(THUMB_DIM, 0.6)
+      // PNG preserva letras pequenas e linhas finas da tela, que perdiam
+      // nitidez com a compressão JPEG antes de chegar ao modelo de visão.
+      image: drawScaled(maxDim || DEFAULT_MAX_DIM, 'image/png'),
+      // Versão intermediária para reaproveitar nas próximas análises sem
+      // estourar a janela de contexto com vários PNGs grandes.
+      memory: drawScaled(MEMORY_DIM, 'image/jpeg', 0.9),
+      thumb: drawScaled(THUMB_DIM, 'image/jpeg', 0.65)
     };
   }
 
@@ -127,8 +135,8 @@
     ws.addEventListener('message', (ev) => {
       const msg = JSON.parse(ev.data);
       if (msg.type === 'grab') {
-        const { image, thumb } = grabFrame(msg.maxDim);
-        ws.send(JSON.stringify({ type: 'frame', id: msg.id, image, thumb }));
+        const { image, memory, thumb } = grabFrame(msg.maxDim);
+        ws.send(JSON.stringify({ type: 'frame', id: msg.id, image, memory, thumb }));
       }
     });
   }

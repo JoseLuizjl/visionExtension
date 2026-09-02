@@ -76,6 +76,30 @@ main {
   gap: 8px;
 }
 
+.memory-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #8fc9a0;
+  font-size: 0.78rem;
+}
+
+#clearMemory {
+  border: 1px solid #3a3a3e;
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+#clearMemory:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
 .last-preview.hidden {
   display: none;
 }
@@ -86,6 +110,8 @@ main {
   object-fit: cover;
   border-radius: 6px;
   border: 1px solid #333;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 textarea {
@@ -197,6 +223,13 @@ textarea {
   cursor: pointer;
   background: #000;
   flex: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.thumb.copying,
+.last-preview img.copying {
+  opacity: 0.55;
+  transform: scale(0.96);
 }
 
 .meta {
@@ -370,4 +403,31 @@ textarea {
   max-width: 95vw;
   max-height: 95vh;
   border-radius: 8px;
+  -webkit-touch-callout: default;
+  user-select: auto;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  z-index: 30;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 28px);
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: #256f3a;
+  color: #fff;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  font-size: 0.86rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.toast.error {
+  background: #704b20;
+}
+
+.toast.hidden {
+  display: none;
 }
